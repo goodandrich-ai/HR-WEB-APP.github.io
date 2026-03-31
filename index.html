@@ -246,8 +246,17 @@ async function apiGet(action, params) {
       url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
     });
   }
+  console.log('[API GET]', url);
   var res = await fetch(url);
-  return res.json();
+  console.log('[API GET] status:', res.status, 'type:', res.headers.get('content-type'));
+  var text = await res.text();
+  console.log('[API GET] raw response (first 200):', text.substring(0, 200));
+  try {
+    return JSON.parse(text);
+  } catch(e) {
+    console.error('[API GET] JSON parse failed:', e.message);
+    return {success:false, error:'Response is not JSON: ' + text.substring(0, 100)};
+  }
 }
 
 async function apiPost(payload) {
@@ -282,16 +291,25 @@ async function doLogin() {
   var credential = $('loginInput').value.trim();
   if (!credential) { showLoginError('กรุณากรอกเลขบัตรประชาชน หรือ อีเมล'); return; }
 
+  console.log('[LOGIN] Starting with:', credential);
   $('loginError').style.display = 'none';
   $('loginLoading').style.display = 'block';
   $('loginBtn').disabled = true;
 
   try {
+    console.log('[LOGIN] Calling API...');
     var result = await apiGet('login', {credential: credential});
-    if (!result.success) { showLoginError(result.error); return; }
+    console.log('[LOGIN] API response:', JSON.stringify(result).substring(0, 300));
+
+    if (!result.success) {
+      console.log('[LOGIN] FAILED:', result.error);
+      showLoginError(result.error);
+      return;
+    }
 
     _session = result.data;
     _credential = credential;
+    console.log('[LOGIN] SUCCESS — name:', _session.name, 'role:', _session.role);
 
     // Show app
     $('loginScreen').classList.remove('active');
@@ -305,10 +323,13 @@ async function doLogin() {
     }
 
     // Load initial data
+    console.log('[LOGIN] Loading months...');
     await loadMonths();
+    console.log('[LOGIN] Months loaded:', _months.length, 'current:', _currentMonth);
     loadPayslip();
 
   } catch(err) {
+    console.error('[LOGIN] ERROR:', err);
     showLoginError('เกิดข้อผิดพลาด: ' + err.message);
   } finally {
     $('loginLoading').style.display = 'none';
